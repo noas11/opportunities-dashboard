@@ -150,7 +150,7 @@ async function fetchAllOpportunities(startDate) {
   const results = [];
 
   let url =
-    `${SAP_BASE_URL}?$filter=${encodeURIComponent(`startDate gt '${startDate}'`)}` +
+    `${SAP_BASE_URL}?$filter=${encodeURIComponent(`startDate ge '${startDate}'`)}` +
     `&$top=${PAGE_SIZE}`;
 
   for (let page = 0; page < MAX_PAGES && url; page++) {
@@ -258,7 +258,7 @@ app.get('/api/opportunities', async (req, res) => {
     res.json({
       period,
       startDate,
-      filter: `startDate gt '${startDate}'`,
+      filter: `startDate ge '${startDate}'`,
       count: opportunities.length,
       opportunities,
       mock: USE_MOCK_DATA,

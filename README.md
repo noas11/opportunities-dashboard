@@ -46,9 +46,9 @@ Then open **http://localhost:3000**.
 On every request to `/api/opportunities?period=day|month|year`, the server
 computes the start date **at request time** (never hardcoded) and builds:
 
-- **day** → `?$filter=startDate gt '2026-07-16'` (today)
-- **month** → `?$filter=startDate gt '2026-07-01'` (first of this month)
-- **year** → `?$filter=startDate gt '2026-01-01'` (first of this year)
+- **day** → `?$filter=startDate ge '2026-07-16'` (today)
+- **month** → `?$filter=startDate ge '2026-07-01'` (first of this month)
+- **year** → `?$filter=startDate ge '2026-01-01'` (first of this year)
 
 ## How aggregation works
 
