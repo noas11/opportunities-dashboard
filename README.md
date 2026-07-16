@@ -46,9 +46,12 @@ Then open **http://localhost:3000**.
 On every request to `/api/opportunities?period=day|month|year`, the server
 computes the start date **at request time** (never hardcoded) and builds:
 
-- **day** → `?$filter=startDate ge '2026-07-16'` (today)
-- **month** → `?$filter=startDate ge '2026-07-01'` (first of this month)
-- **year** → `?$filter=startDate ge '2026-01-01'` (first of this year)
+- **day** → `?$filter=startDate ge '2026-07-16'` (today, inclusive)
+- **month** → `?$filter=startDate ge '2026-07-01'` (first of this month, inclusive)
+- **year** → `?$filter=startDate ge '2026-01-01'` (first of this year, inclusive)
+
+`ge` (greater-or-equal) is used deliberately, not `gt` — a `gt` filter would
+exclude Opportunities created exactly on the start date itself.
 
 ## How aggregation works
 
@@ -102,6 +105,36 @@ including the KPI cards, period/drill-down selectors, chart title, axis
 titles, tooltips, loading state, and empty state. Numeric values (counts,
 dates) are kept in Western digits, which is standard practice in Hebrew
 business UIs.
+
+## Responsive layout / embedding in a SAP Mashup
+
+The dashboard is built to fill whatever container it's placed in — designed
+for embedding as a SAP Sales Cloud V2 Mashup (iframe), but works at any size:
+
+- `.app` is a full-height flex column (`min-height: 100dvh`) with no fixed
+  or max width, so it always uses 100% of the iframe's width and height.
+- Header, controls, and KPI row take only the vertical space their content
+  needs; the chart card has `flex: 1 1 auto` and grows to fill whatever
+  space is left — no wasted empty space, and no fixed pixel chart height.
+- The KPI row is a wrapping flexbox (not a fixed-column grid): cards sit in
+  a single row when there's room and wrap onto more rows as the container
+  narrows, resizing proportionally in between rather than snapping at a
+  couple of hard breakpoints.
+- Spacing, font sizes, and control padding use `clamp()` so they scale
+  smoothly with the container instead of jumping at breakpoints.
+- The only two `@media` breakpoints left (640px, 380px) handle things that
+  genuinely need a structural change at very narrow widths (KPI cards going
+  full-width, the header subtitle/refresh-button label hiding to avoid
+  wrapping to a third line) — they're a small addition on top of the fluid
+  layout, not the primary mechanism.
+- The many-category chart (see above) still gets its own internal
+  vertical scroll region sized to fit every label — this is intentional
+  and is the one place the dashboard scrolls; the page itself does not.
+
+This was verified with a headless browser across viewports from 320×600 up
+to 1400×900, including live mid-session resizes: at every size, the page
+has zero horizontal overflow and zero page-level vertical scrolling, and
+the chart canvas always fills the available width.
 
 ## Chart layout: vertical vs. horizontal
 
