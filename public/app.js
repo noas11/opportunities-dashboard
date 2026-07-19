@@ -40,11 +40,12 @@
 
   let chart = null;
 
-  const PERIOD_LABEL = { day: 'יום נוכחי', month: 'חודש נוכחי', year: 'שנה נוכחית' };
+  const PERIOD_LABEL = { day: 'יום נוכחי', week: 'שבוע נוכחי', month: 'חודש נוכחי', year: 'שנה נוכחית' };
   const DIM_LABEL = { date: 'תאריך', media: 'מדיה', project: 'פרויקט' };
   const MONTH_NAMES = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
   const MONTH_SHORT = ['ינו','פבר','מרץ','אפר','מאי','יונ','יול','אוג','ספט','אוק','נוב','דצמ'];
   const WEEKDAY_SHORT = ['יום א׳','יום ב׳','יום ג׳','יום ד׳','יום ה׳','יום ו׳','שבת'];
+  const WEEKDAY_FULL = ['יום ראשון','יום שני','יום שלישי','יום רביעי','יום חמישי','יום שישי','יום שבת'];
 
   // -------------------------------------------------------------------------
   // Data fetching
@@ -89,6 +90,26 @@
     if (period === 'day') {
       const label = `${WEEKDAY_SHORT[now.getDay()]}, ${now.getDate()} ב${MONTH_NAMES[now.getMonth()]}`;
       return { labels: [label], counts: [opportunities.length], meta: ['היום'] };
+    }
+
+    if (period === 'week') {
+      // Week starts on Sunday — same rule the server uses to compute the
+      // $filter start date, so the two stay in sync.
+      const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+      const counts = new Array(7).fill(0); // all 7 days shown, future days stay 0
+
+      opportunities.forEach((opp) => {
+        const d = parseDateOnly(opp.startDate);
+        if (!d) return;
+        const dayOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const diffDays = Math.round((dayOnly - startOfWeek) / (24 * 60 * 60 * 1000));
+        if (diffDays >= 0 && diffDays < 7) {
+          counts[diffDays] += 1;
+        }
+      });
+
+      const labels = WEEKDAY_FULL.slice();
+      return { labels, counts, meta: labels };
     }
 
     if (period === 'month') {
@@ -212,6 +233,7 @@
     if (state.dim === 'date') {
       const subtitles = {
         day: 'ההזדמנויות של היום',
+        week: 'פילוח יומי לשבוע הנוכחי',
         month: 'פילוח יומי לחודש הנוכחי',
         year: 'פילוח חודשי לשנה הנוכחית',
       };

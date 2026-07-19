@@ -47,11 +47,14 @@ On every request to `/api/opportunities?period=day|month|year`, the server
 computes the start date **at request time** (never hardcoded) and builds:
 
 - **day** → `?$filter=startDate ge '2026-07-16'` (today, inclusive)
+- **week** → `?$filter=startDate ge '2026-07-12'` (Sunday of the current week, inclusive)
 - **month** → `?$filter=startDate ge '2026-07-01'` (first of this month, inclusive)
 - **year** → `?$filter=startDate ge '2026-01-01'` (first of this year, inclusive)
 
 `ge` (greater-or-equal) is used deliberately, not `gt` — a `gt` filter would
-exclude Opportunities created exactly on the start date itself.
+exclude Opportunities created exactly on the start date itself. The week
+start is computed as `today - today.getDay()` (JS `Date.getDay()` returns
+`0` for Sunday), so the week always begins on Sunday.
 
 ## How aggregation works
 
@@ -62,7 +65,10 @@ below. The browser then aggregates on the fly based on the selected
 **Group by** dimension:
 
 - **Date** — Year view groups by month (Jan–Dec); Month view groups by day
-  (01–31 of the current month); Day view shows a single total for today
+  (01–31 of the current month); **Week view groups by day of week** (Sunday
+  through Saturday, always shown as 7 bars — days later in the week that
+  haven't happened yet still appear, at 0); Day view shows a single total
+  for today
 - **Media** — `extensions.Z_media` is an **array** (an Opportunity can carry
   more than one media code). Each code is mapped individually, and the
   opportunity is counted once *per media value it contains* — so a single

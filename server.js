@@ -118,6 +118,10 @@ function computeStartDate(period) {
   let start;
   if (period === 'day') {
     start = new Date(y, m, d);
+  } else if (period === 'week') {
+    // Week starts on Sunday: subtract the current day-of-week index
+    // (0 = Sunday .. 6 = Saturday) to land on that week's Sunday.
+    start = new Date(y, m, d - now.getDay());
   } else if (period === 'month') {
     start = new Date(y, m, 1);
   } else if (period === 'year') {
@@ -239,9 +243,9 @@ function generateMockOpportunities(startDate) {
 app.get('/api/opportunities', async (req, res) => {
   const period = req.query.period;
 
-  if (!['day', 'month', 'year'].includes(period)) {
+  if (!['day', 'week', 'month', 'year'].includes(period)) {
     return res.status(400).json({
-      error: "Invalid or missing 'period' query parameter. Use 'day', 'month', or 'year'.",
+      error: "Invalid or missing 'period' query parameter. Use 'day', 'week', 'month', or 'year'.",
     });
   }
 
