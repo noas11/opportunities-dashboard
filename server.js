@@ -145,19 +145,34 @@ function buildAuthHeader() {
 }
 
 /**
- * Pulls every page of Opportunities for the given start date filter,
- * following either OData v4 (@odata.nextLink / value) or OData v2
- * (d.results / d.__next) style pagination, whichever the tenant returns.
+ * Pulls every page of Opportunities for the given start date filter.
+ *
+ * Prefers an explicit next-page link when the tenant provides one — OData
+ * v4 (@odata.nextLink) or OData v2 (d.__next) — but does NOT assume the
+ * absence of that field means "no more data". Many SAP C4C REST/OData
+ * services never populate a next-link at all and expect the client to
+ * page manually via $skip. Previously, a missing next-link silently
+ * stopped the loop after the very first page (PAGE_SIZE records), which
+ * is exactly why Month/Year — the periods most likely to exceed
+ * PAGE_SIZE records — stopped reflecting newly created Opportunities
+ * once the true result set grew past the first page, while Day/Week
+ * (always well under PAGE_SIZE) looked fine. Now, whenever there's no
+ * next-link, we keep requesting the next $skip slice as long as the
+ * current page came back full; a short page means we've reached the end.
  */
 async function fetchAllOpportunities(startDate) {
   const authHeader = buildAuthHeader();
   const results = [];
 
-  let url =
-    `${SAP_BASE_URL}?$filter=${encodeURIComponent(`startDate ge '${startDate}'`)}` +
-    `&$top=${PAGE_SIZE}`;
+  let skip = 0;
+  let nextUrl = null; // set only when the API gives us an explicit next-page link
 
-  for (let page = 0; page < MAX_PAGES && url; page++) {
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const url =
+      nextUrl ||
+      `${SAP_BASE_URL}?$filter=${encodeURIComponent(`startDate ge '${startDate}'`)}` +
+      `&$top=${PAGE_SIZE}&$skip=${skip}`;
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -178,29 +193,42 @@ async function fetchAllOpportunities(startDate) {
 
     const json = await response.json();
 
-    // OData v4 / REST style
+    let pageItems;
+    let providedNextLink = null;
+
     if (Array.isArray(json.value)) {
-      results.push(...json.value);
-      url = json['@odata.nextLink'] || null;
+      // OData v4 / REST style
+      pageItems = json.value;
+      providedNextLink = json['@odata.nextLink'] || null;
+    } else if (json.d && Array.isArray(json.d.results)) {
+      // OData v2 style
+      pageItems = json.d.results;
+      providedNextLink = json.d.__next || null;
+    } else if (Array.isArray(json)) {
+      // Plain array fallback
+      pageItems = json;
+    } else {
+      // Unknown shape — stop, return what we parsed so far
+      break;
+    }
+
+    results.push(...pageItems);
+
+    if (providedNextLink) {
+      // Some tenants return a relative link — normalize it against the API host.
+      nextUrl = providedNextLink.startsWith('http')
+        ? providedNextLink
+        : new URL(providedNextLink, SAP_BASE_URL).toString();
       continue;
     }
 
-    // OData v2 style
-    if (json.d && Array.isArray(json.d.results)) {
-      results.push(...json.d.results);
-      url = json.d.__next || null;
-      continue;
+    // No next-link was given. Only keep going if this page was full —
+    // a short (or empty) page means we've genuinely reached the end.
+    nextUrl = null;
+    if (pageItems.length < PAGE_SIZE) {
+      break;
     }
-
-    // Plain array fallback
-    if (Array.isArray(json)) {
-      results.push(...json);
-      url = null;
-      continue;
-    }
-
-    // Unknown shape - stop, return what we parsed (none)
-    url = null;
+    skip += PAGE_SIZE;
   }
 
   return results;
@@ -241,6 +269,11 @@ function generateMockOpportunities(startDate) {
 // ---------------------------------------------------------------------------
 
 app.get('/api/opportunities', async (req, res) => {
+  // Every period switch must hit SAP fresh — never let the browser or an
+  // intermediary cache/reuse a previous response for this endpoint.
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
+
   const period = req.query.period;
 
   if (!['day', 'week', 'month', 'year'].includes(period)) {

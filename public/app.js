@@ -54,7 +54,9 @@
   async function loadData() {
     showLoading();
     try {
-      const res = await fetch(`/api/opportunities?period=${encodeURIComponent(state.period)}`);
+      const res = await fetch(`/api/opportunities?period=${encodeURIComponent(state.period)}`, {
+        cache: 'no-store',
+      });
       const payload = await res.json();
 
       if (!res.ok) {

@@ -142,6 +142,33 @@ to 1400×900, including live mid-session resizes: at every size, the page
 has zero horizontal overflow and zero page-level vertical scrolling, and
 the chart canvas always fills the available width.
 
+## Pagination — why Month/Year could go stale
+
+`fetchAllOpportunities()` in `server.js` previously stopped as soon as a
+response had no explicit next-page link (`@odata.nextLink` / `d.__next`).
+Some SAP C4C REST/OData services never populate that field and expect the
+client to keep paging manually via `$skip` instead. That meant: as soon as
+a period's result set passed `PAGE_SIZE` (200) records, the server silently
+returned only the first page and dropped everything after it — Day/Week
+almost never hit that limit, so they always looked correct, while Month and
+Year would appear "frozen" once they crossed 200 records, since every
+Opportunity created after record #200 was invisible to the dashboard no
+matter how many times you refreshed.
+
+The fix: when no next-link is provided, the server now keeps requesting the
+next `$skip` slice as long as the current page came back full, and only
+stops once a page comes back short (or empty) — the real end of the data.
+An explicit next-link, when the tenant does provide one, is still preferred
+and followed as before.
+
+As defense-in-depth (not the root cause, but requested for peace of mind):
+the `/api/opportunities` response now sends `Cache-Control: no-store` /
+`Pragma: no-cache`, and the frontend's `fetch()` call passes
+`cache: 'no-store'` explicitly. The app was already issuing a fresh request
+on every period switch with no client-side memoization — that part didn't
+need a fix, but is now backed by explicit no-cache headers on both ends
+too.
+
 ## Chart layout: vertical vs. horizontal
 
 Every category label is always shown — Chart.js's automatic label-skipping
